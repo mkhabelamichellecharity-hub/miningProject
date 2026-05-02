@@ -1,11 +1,24 @@
 const express = require("express");
 const router = express.Router();
-const Alert = require("../models/Alert");
+const {
+  getAll,
+  createDoc,
+  getDoc,
+  updateDoc,
+  deleteDoc,
+  deleteQuery,
+} = require("../firebase");
+
+const alertsCol = "alerts";
 
 // GET all alerts
 router.get("/", async (req, res) => {
   try {
-    const alerts = await Alert.find().sort({ createdAt: -1 }).limit(100);
+    const alerts = await getAll(alertsCol, {
+      orderBy: "createdAt",
+      direction: "desc",
+      limit: 100,
+    });
     res.json(alerts);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -21,8 +34,7 @@ router.post("/", async (req, res) => {
         .status(400)
         .json({ error: "type, severity, and message are required" });
 
-    const alert = new Alert({ type, severity, message });
-    await alert.save();
+    const alert = await createDoc(alertsCol, { type, severity, message });
     res.status(201).json(alert);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -32,12 +44,13 @@ router.post("/", async (req, res) => {
 // PUT resolve alert
 router.put("/:id/resolve", async (req, res) => {
   try {
-    const alert = await Alert.findByIdAndUpdate(
-      req.params.id,
-      { resolved: true, resolvedAt: new Date() },
-      { new: true }
-    );
-    if (!alert) return res.status(404).json({ error: "Alert not found" });
+    const existing = await getDoc(alertsCol, req.params.id);
+    if (!existing) return res.status(404).json({ error: "Alert not found" });
+
+    const alert = await updateDoc(alertsCol, req.params.id, {
+      resolved: true,
+      resolvedAt: new Date(),
+    });
     res.json(alert);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -47,8 +60,10 @@ router.put("/:id/resolve", async (req, res) => {
 // DELETE alert
 router.delete("/:id", async (req, res) => {
   try {
-    const alert = await Alert.findByIdAndDelete(req.params.id);
-    if (!alert) return res.status(404).json({ error: "Alert not found" });
+    const existing = await getDoc(alertsCol, req.params.id);
+    if (!existing) return res.status(404).json({ error: "Alert not found" });
+
+    await deleteDoc(alertsCol, req.params.id);
     res.json({ success: true, message: "Alert deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -58,8 +73,8 @@ router.delete("/:id", async (req, res) => {
 // DELETE all resolved alerts
 router.delete("/clear/resolved", async (req, res) => {
   try {
-    const result = await Alert.deleteMany({ resolved: true });
-    res.json({ success: true, deleted: result.deletedCount });
+    const deletedCount = await deleteQuery(alertsCol, "resolved", "==", true);
+    res.json({ success: true, deleted: deletedCount });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

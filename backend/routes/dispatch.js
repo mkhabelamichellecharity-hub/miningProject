@@ -1,14 +1,20 @@
 const express = require("express");
 const router = express.Router();
-const Dispatch = require("../models/Dispatch");
+const { getSingleton, createDoc, updateDoc } = require("../firebase");
+
+const dispatchCol = "dispatch";
+const defaultDispatch = {
+  trucksEnRoute: 3,
+  avgCycleTime: 18,
+  activeDrivers: 5,
+};
 
 // GET dispatch data
 router.get("/", async (req, res) => {
   try {
-    let d = await Dispatch.findOne();
+    let d = await getSingleton(dispatchCol);
     if (!d) {
-      d = new Dispatch();
-      await d.save();
+      d = await createDoc(dispatchCol, defaultDispatch);
     }
     res.json(d);
   } catch (err) {
@@ -19,17 +25,18 @@ router.get("/", async (req, res) => {
 // PUT update dispatch
 router.put("/", async (req, res) => {
   try {
-    let d = await Dispatch.findOne();
-    if (!d) d = new Dispatch();
+    let d = await getSingleton(dispatchCol);
+    if (!d) d = await createDoc(dispatchCol, defaultDispatch);
 
     const { trucksEnRoute, avgCycleTime, activeDrivers } = req.body;
-    if (trucksEnRoute !== undefined) d.trucksEnRoute = trucksEnRoute;
-    if (avgCycleTime !== undefined) d.avgCycleTime = avgCycleTime;
-    if (activeDrivers !== undefined) d.activeDrivers = activeDrivers;
-    d.updatedAt = new Date();
+    const updates = {};
+    if (trucksEnRoute !== undefined) updates.trucksEnRoute = trucksEnRoute;
+    if (avgCycleTime !== undefined) updates.avgCycleTime = avgCycleTime;
+    if (activeDrivers !== undefined) updates.activeDrivers = activeDrivers;
+    updates.updatedAt = new Date();
 
-    await d.save();
-    res.json(d);
+    const updated = await updateDoc(dispatchCol, d.id, updates);
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

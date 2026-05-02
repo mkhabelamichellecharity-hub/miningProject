@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "/api",
+  baseURL: process.env.REACT_APP_API_URL || "http://localhost:5000/api",
   headers: { "Content-Type": "application/json" },
   timeout: 10000,
 });
@@ -48,6 +48,25 @@ export const updateGeo = (data) => api.put("/geotechnical", data);
 
 // Lighting
 export const getLighting    = () => api.get("/lighting");
+
+// Alcohol
+export const getAlcoholReadings    = (params) => api.get("/alcohol", { params });
+export const submitAlcoholReading  = (data) => api.post("/alcohol", data);
+export const overrideAlcoholReading = (id, data) => api.put(`/alcohol/${id}/override`, data);
+export const deleteAlcoholReading  = (id) => api.delete(`/alcohol/${id}`);
+
+// Blood Flow
+export const getBloodFlowReadings    = (params) => api.get("/bloodflow", { params });
+export const submitBloodFlowReading  = (data) => api.post("/bloodflow", data);
+export const overrideBloodFlowReading = (id, data) => api.put(`/bloodflow/${id}/override`, data);
+export const deleteBloodFlowReading  = (id) => api.delete(`/bloodflow/${id}`);
+
+// Drug Tests
+export const getDrugTestSelections    = (params) => api.get("/drugtests", { params });
+export const getTodaysDrugSelection   = () => api.get("/drugtests/today");
+export const generateDrugTestSelection = (data) => api.post("/drugtests/generate", data);
+export const updateDrugTestResult     = (id, data) => api.put(`/drugtests/${id}/result`, data);
+export const deleteDrugTestSelection  = (id) => api.delete(`/drugtests/${id}`);
 export const updateLighting = (data) => api.put("/lighting", data);
 
 // Vitals
@@ -76,5 +95,27 @@ export const addMapTile        = (id, data) => api.put(`/drones/${id}/map-tile`,
 export const clearDroneMap     = (id) => api.put(`/drones/${id}/clear-map`);
 export const toggleDroneCamera = (id, data) => api.put(`/drones/${id}/camera`, data);
 export const deleteDrone       = (id) => api.delete(`/drones/${id}`);
+
+// Vision Cameras
+export const getVisionCameras        = () => api.get("/visioncamera");
+export const getVisionCamera         = (id) => api.get(`/visioncamera/${id}`);
+export const createVisionCamera      = (data) => api.post("/visioncamera", data);
+export const updateVisionCamera      = (id, data) => api.put(`/visioncamera/${id}`, data);
+export const deleteVisionCamera      = (id) => api.delete(`/visioncamera/${id}`);
+export const startVisionCameraRecording = (id) => api.post(`/visioncamera/${id}/recording/start`);
+export const stopVisionCameraRecording  = (id) => api.post(`/visioncamera/${id}/recording/stop`);
+
+// Integrated Tracking (Helmet + Belt)
+export const getActiveTrackers = () => api.get("/integratedtracking");
+export const getWorkerTracker = (workerId) => api.get(`/integratedtracking/${workerId}`);
+export const initializeTracker = (data) => api.post("/integratedtracking/init", data);
+export const updateHelmetData = (workerId, data) => api.post(`/integratedtracking/${workerId}/helmet/data`, data);
+export const updateBeltLocation = (workerId, data) => api.post(`/integratedtracking/${workerId}/belt/location`, data);
+export const syncTrackers = (workerId, data) => api.post(`/integratedtracking/${workerId}/sync`, data);
+export const recordRfidScan = (workerId, data) => api.post(`/integratedtracking/${workerId}/rfid/scan`, data);
+export const getTrackerHistory = (workerId, limit = 100) => api.get(`/integratedtracking/${workerId}/history?limit=${limit}`);
+export const getTrackerAlerts = (workerId) => api.get(`/integratedtracking/${workerId}/alerts`);
+export const resolveTrackerAlert = (workerId, alertIndex) => api.put(`/integratedtracking/${workerId}/alerts/${alertIndex}/resolve`);
+export const checkoutTracker = (workerId) => api.post(`/integratedtracking/${workerId}/checkout`);
 
 export default api;

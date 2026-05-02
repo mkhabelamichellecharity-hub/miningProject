@@ -11,7 +11,6 @@ const RANGES = {
   temperature:  { normal: "36.1–37.2°C",     warning: "35.5–36.0 / 37.3–38.0", critical: "<35.5 or >38.1°C" },
   bloodOxygen:  { normal: "≥95%",            warning: "90–94%",                 critical: "<90%" },
   bloodPressure:{ normal: "90–120 / 60–80",  warning: "130+/90+",               critical: "180+/120+" },
-  alcohol:      { normal: "<0.02 mg/100ml",  warning: "0.02–0.04",              critical: ">0.04 (FAIL)" },
   drugs:        { normal: "Negative",        warning: "—",                      critical: "Positive (FAIL)" },
 };
 
@@ -84,7 +83,6 @@ export default function Vitals() {
   const emptyForm = {
     workerId:"", workerName:"", checkType:"check-in",
     heartRate:"", temperature:"", bloodOxygen:"", bpSystolic:"", bpDiastolic:"",
-    alcoholValue:"", alcoholMethod:"breathalyser",
     drugResult:"not-tested", drugSubstances:[], drugMethod:"urine",
     supervisorName:"", notes:"",
   };
@@ -119,7 +117,7 @@ export default function Vitals() {
 
   const handleSubmit = async () => {
     if (!form.workerId) { show("Select a worker first", "error"); return; }
-    const anyVital = form.heartRate || form.temperature || form.bloodOxygen || form.bpSystolic || form.alcoholValue || form.drugResult !== "not-tested";
+    const anyVital = form.heartRate || form.temperature || form.bloodOxygen || form.bpSystolic || form.drugResult !== "not-tested";
     if (!anyVital) { show("Enter at least one vital sign or test result", "error"); return; }
 
     setSubmitting(true);
@@ -133,9 +131,6 @@ export default function Vitals() {
         temperature: form.temperature ? Number(form.temperature) : undefined,
         bloodOxygen: form.bloodOxygen ? Number(form.bloodOxygen) : undefined,
         bloodPressure: form.bpSystolic ? { systolic: Number(form.bpSystolic), diastolic: Number(form.bpDiastolic) } : undefined,
-        alcoholTest: form.alcoholValue
-          ? { value: Number(form.alcoholValue), testMethod: form.alcoholMethod }
-          : undefined,
         drugTest: form.drugResult !== "not-tested"
           ? { result: form.drugResult, substances: form.drugSubstances, testMethod: form.drugMethod }
           : undefined,
@@ -165,11 +160,7 @@ export default function Vitals() {
 
   const handleNotify = async (id, supervisorName) => {
     try {
-      await fetch("/api/vitals/" + id + "/notify", {
-        method:"PUT",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ supervisorName }),
-      });
+      await notifyVitals(id, { supervisorName });
       show("Supervisor " + supervisorName + " notified ✅", "success");
       setSupervisorModal(null);
       loadData();
@@ -200,7 +191,6 @@ export default function Vitals() {
   const unfitCount  = vitals.filter(v => v.overallStatus === "unfit"   && !v.overriddenBy).length;
   const cautionCount= vitals.filter(v => v.overallStatus === "caution").length;
   const drugFails   = vitals.filter(v => v.drugTest?.status === "fail").length;
-  const alcFails    = vitals.filter(v => v.alcoholTest?.status === "fail").length;
 
   const TabBtn = ({ id, label }) => (
     <button onClick={() => setTab(id)} style={{ background: tab===id?"#334155":"#1e293b", border:`1px solid ${tab===id?"#64748b":"#334155"}`, color: tab===id?"#f1f5f9":"#64748b", padding:"8px 20px", borderRadius:8, fontSize:14, fontWeight:tab===id?600:400, cursor:"pointer" }}>
@@ -272,7 +262,7 @@ export default function Vitals() {
       <SupervisorModal />
       <OverrideModal />
 
-      <PageHeader title="🫀 Human Vitals Monitor" subtitle="Health screening at check-in and check-out — vitals, alcohol and drug testing" />
+      <PageHeader title="🫀 Human Vitals Monitor" subtitle="Health screening at check-in and check-out — vitals and drug testing" />
 
       {/* Stats */}
       <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:24 }}>
@@ -280,7 +270,6 @@ export default function Vitals() {
         <StatCard title="Currently Blocked" value={unfitCount}   color={unfitCount>0?"#ef4444":"#22c55e"} icon="🚫" />
         <StatCard title="Caution"           value={cautionCount} color={cautionCount>0?"#f59e0b":"#22c55e"} icon="⚠️" />
         <StatCard title="Drug Fails"        value={drugFails}    color={drugFails>0?"#ef4444":"#22c55e"} icon="💊" />
-        <StatCard title="Alcohol Fails"     value={alcFails}     color={alcFails>0?"#ef4444":"#22c55e"} icon="🍺" />
       </div>
 
       {/* Tabs */}
@@ -338,26 +327,6 @@ export default function Vitals() {
                   <span style={{ color:"#475569" }}>/</span>
                   <Input type="number" placeholder="Diastolic" value={form.bpDiastolic} onChange={e => f("bpDiastolic", e.target.value)} />
                 </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Alcohol test */}
-          <div style={{ background:"#1e293b", borderRadius:12, padding:24, border:"1px solid #334155" }}>
-            <SectionHeader title="🍺 Alcohol test" />
-            <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
-              <div style={{ flex:2, minWidth:160 }}>
-                <FieldLabel hint="Limit: 0.04 mg/100ml">BAC reading (mg/100ml)</FieldLabel>
-                <Input type="number" placeholder="e.g. 0.00" value={form.alcoholValue} onChange={e => f("alcoholValue", e.target.value)} />
-                <div style={{ fontSize:11, color:"#475569", marginTop:4 }}>Pass: &lt;0.02 · Warning: 0.02–0.04 · Fail: &gt;0.04</div>
-              </div>
-              <div style={{ flex:1, minWidth:150 }}>
-                <FieldLabel>Test method</FieldLabel>
-                <Select value={form.alcoholMethod} onChange={e => f("alcoholMethod", e.target.value)}>
-                  <option value="breathalyser">Breathalyser</option>
-                  <option value="blood">Blood test</option>
-                  <option value="not-tested">Not tested</option>
-                </Select>
               </div>
             </div>
           </div>
@@ -445,7 +414,6 @@ export default function Vitals() {
                   {r.temperature.value  != null && <VitalCard label="Temperature"    value={r.temperature.value}  unit="°C"      status={r.temperature.status} />}
                   {r.bloodOxygen.value  != null && <VitalCard label="SpO2"           value={r.bloodOxygen.value}  unit="%"       status={r.bloodOxygen.status} />}
                   {r.bloodPressure.systolic != null && <VitalCard label="Blood pressure" value={r.bloodPressure.systolic + "/" + r.bloodPressure.diastolic} unit=" mmHg" status={r.bloodPressure.status} />}
-                  {r.alcoholTest.value  != null && <VitalCard label="Alcohol BAC"    value={r.alcoholTest.value}  unit=" mg/100ml" status={r.alcoholTest.status} />}
                   {r.drugTest.result !== "not-tested" && <VitalCard label="Drug test" value={r.drugTest.result}  unit="" status={r.drugTest.status === "fail" ? "critical" : "normal"} />}
                 </div>
 
@@ -474,9 +442,9 @@ export default function Vitals() {
       {tab === "history" && (
         <div>
           {loading ? <Spinner /> : (
-            <Table headers={["Worker","Type","Vitals","Alcohol","Drug","Overall","Supervisor","Time","Actions"]}>
+            <Table headers={["Worker","Type","Vitals","Drug","Overall","Supervisor","Time","Actions"]}>
               {vitals.map(v => (
-                <TR key={v._id}>
+                <TR key={v.id || v._id}>
                   <TD>
                     <div style={{ fontWeight:600, color:"#f1f5f9" }}>{v.workerName}</div>
                     <div style={{ color:"#475569", fontSize:11 }}>{v.workerId}</div>
@@ -489,11 +457,6 @@ export default function Vitals() {
                       {v.bloodOxygen.value  != null && <span style={{ color: SC[v.bloodOxygen.status] }}>SpO2: {v.bloodOxygen.value}%</span>}
                       {v.bloodPressure.systolic != null && <span style={{ color: SC[v.bloodPressure.status] }}>BP: {v.bloodPressure.systolic}/{v.bloodPressure.diastolic}</span>}
                     </div>
-                  </TD>
-                  <TD>
-                    {v.alcoholTest.value != null
-                      ? <span style={{ color: SC[v.alcoholTest.status] }}>{v.alcoholTest.value} mg · {v.alcoholTest.status.toUpperCase()}</span>
-                      : <span style={{ color:"#334155" }}>Not tested</span>}
                   </TD>
                   <TD>
                     {v.drugTest.result !== "not-tested"
@@ -547,7 +510,7 @@ export default function Vitals() {
       {tab === "ranges" && (
         <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
           {Object.entries(RANGES).map(([key, range]) => {
-            const labels = { heartRate:"❤️ Heart rate", temperature:"🌡️ Temperature", bloodOxygen:"🫁 Blood oxygen", bloodPressure:"💉 Blood pressure", alcohol:"🍺 Alcohol (BAC)", drugs:"💊 Drug test" };
+            const labels = { heartRate:"❤️ Heart rate", temperature:"🌡️ Temperature", bloodOxygen:"🫁 Blood oxygen", bloodPressure:"💉 Blood pressure", drugs:"💊 Drug test" };
             return (
               <div key={key} style={{ flex:1, minWidth:220, background:"#1e293b", borderRadius:12, padding:20, border:"1px solid #334155" }}>
                 <div style={{ fontWeight:600, color:"#f1f5f9", marginBottom:14, fontSize:15 }}>{labels[key]}</div>

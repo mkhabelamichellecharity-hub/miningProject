@@ -1,14 +1,20 @@
 const express = require("express");
 const router = express.Router();
-const Geotechnical = require("../models/Geotechnical");
+const { getSingleton, createDoc, updateDoc } = require("../firebase");
+
+const geotechnicalCol = "geotechnical";
+const defaultGeotechnical = {
+  stability: 95,
+  lastSeismicEvent: "None",
+  riskLevel: "Low",
+};
 
 // GET geotechnical data
 router.get("/", async (req, res) => {
   try {
-    let geo = await Geotechnical.findOne();
+    let geo = await getSingleton(geotechnicalCol);
     if (!geo) {
-      geo = new Geotechnical();
-      await geo.save();
+      geo = await createDoc(geotechnicalCol, defaultGeotechnical);
     }
     res.json(geo);
   } catch (err) {
@@ -19,17 +25,18 @@ router.get("/", async (req, res) => {
 // PUT update geotechnical
 router.put("/", async (req, res) => {
   try {
-    let geo = await Geotechnical.findOne();
-    if (!geo) geo = new Geotechnical();
+    let geo = await getSingleton(geotechnicalCol);
+    if (!geo) geo = await createDoc(geotechnicalCol, defaultGeotechnical);
 
     const { stability, lastSeismicEvent, riskLevel } = req.body;
-    if (stability !== undefined) geo.stability = stability;
-    if (lastSeismicEvent !== undefined) geo.lastSeismicEvent = lastSeismicEvent;
-    if (riskLevel !== undefined) geo.riskLevel = riskLevel;
-    geo.updatedAt = new Date();
+    const updates = {};
+    if (stability !== undefined) updates.stability = stability;
+    if (lastSeismicEvent !== undefined) updates.lastSeismicEvent = lastSeismicEvent;
+    if (riskLevel !== undefined) updates.riskLevel = riskLevel;
+    updates.updatedAt = new Date();
 
-    await geo.save();
-    res.json(geo);
+    const updated = await updateDoc(geotechnicalCol, geo.id, updates);
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

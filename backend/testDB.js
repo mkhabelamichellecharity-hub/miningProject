@@ -1,36 +1,29 @@
-const mongoose = require("mongoose");
-const dotenv = require("dotenv");
-
-// Load environment variables
-dotenv.config();
-
-// Import Worker model
-const Worker = require("./models/Worker");
+const { getAll, createDoc } = require("./firebase");
 
 async function testDatabase() {
   try {
-    // Connect to MongoDB
-    console.log("🔗 Connecting to MongoDB...");
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log("✅ MongoDB Connected!\n");
+    console.log("🔗 Testing Firebase Realtime Database...");
 
     // Create a test worker
     console.log("📝 Creating test worker...");
-    const testWorker = new Worker({
+    const testWorker = {
       name: "John Doe",
       workerId: "WORKER-001",
+      fingerprint: "test-fingerprint",
       status: "checked-in",
-      checkInTime: new Date(),
+      checkInTime: new Date().toISOString(),
+      checkOutTime: null,
+      assignedTools: [],
       location: "Underground Level 1",
-    });
+    };
 
-    const savedWorker = await testWorker.save();
+    const savedWorker = await createDoc("workers", testWorker);
     console.log("✅ Worker created successfully!");
     console.log("📊 Worker Data:", JSON.stringify(savedWorker, null, 2));
 
     // Retrieve and display all workers
     console.log("\n📋 Retrieving all workers from database...");
-    const allWorkers = await Worker.find();
+    const allWorkers = await getAll("workers");
     console.log(`✅ Found ${allWorkers.length} worker(s):`);
     allWorkers.forEach((worker, index) => {
       console.log(`\n  Worker ${index + 1}:`);
@@ -43,10 +36,6 @@ async function testDatabase() {
     console.log("\n✅ Database test completed successfully!");
   } catch (error) {
     console.error("❌ Error:", error.message);
-  } finally {
-    // Close the connection
-    await mongoose.connection.close();
-    console.log("\n🔌 MongoDB connection closed.");
   }
 }
 

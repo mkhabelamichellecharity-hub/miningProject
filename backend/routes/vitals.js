@@ -1,17 +1,17 @@
 const express = require("express");
 const router  = express.Router();
-const VitalReading = require("../models/VitalReading");
-const Alert        = require("../models/Alert");
-const Worker       = require("../models/Worker");
+const { getAll, getDoc, createDoc, queryOne } = require("../firebase");
 
 // ── GET all vitals ────────────────────────────────────────
 router.get("/", async (req, res) => {
   try {
     const { workerId, limit = 100 } = req.query;
-    const filter = workerId ? { workerId } : {};
-    const vitals = await VitalReading.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit));
+    let vitals = await getAll("vitals");
+    if (workerId) {
+      vitals = vitals.filter(v => v.workerId === workerId);
+    }
+    vitals.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    vitals = vitals.slice(0, parseInt(limit));
     res.json(vitals);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -21,10 +21,12 @@ router.get("/", async (req, res) => {
 // ── GET latest reading per worker ─────────────────────────
 router.get("/latest", async (req, res) => {
   try {
-    const workers = await Worker.find();
+    const workers = await getAll("workers");
     const latest  = await Promise.all(
       workers.map(async (w) => {
-        const reading = await VitalReading.findOne({ workerId: w.workerId }).sort({ createdAt: -1 });
+        const allVitals = await getAll("vitals");
+        const workerVitals = allVitals.filter(v => v.workerId === w.workerId);
+        const reading = workerVitals.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
         return { worker: w, latestVitals: reading };
       })
     );
@@ -37,7 +39,7 @@ router.get("/latest", async (req, res) => {
 // ── GET single reading ────────────────────────────────────
 router.get("/:id", async (req, res) => {
   try {
-    const vital = await VitalReading.findById(req.params.id);
+    const vital = await getDoc("vitals", req.params.id);
     if (!vital) return res.status(404).json({ error: "Reading not found" });
     res.json(vital);
   } catch (err) {
@@ -50,38 +52,104 @@ router.post("/", async (req, res) => {
   try {
     const {
       workerId, workerName, checkType,
-      heartRate, temperature, bloodOxygen, bloodPressure,
-      alcoholTest, drugTest,
+      heartRate, temperature, bloodOxygen,
+      drugTest,
       supervisorName, notes,
     } = req.body;
 
     if (!workerId || !workerName || !checkType)
       return res.status(400).json({ error: "workerId, workerName and checkType are required" });
 
-    const reading = new VitalReading({
+    // Calculate statuses
+    const reading = {
       workerId,
       workerName,
       checkType,
-      heartRate:    { value: heartRate ?? null },
-      temperature:  { value: temperature ?? null },
-      bloodOxygen:  { value: bloodOxygen ?? null },
-      bloodPressure: {
-        systolic:  bloodPressure?.systolic  ?? null,
-        diastolic: bloodPressure?.diastolic ?? null,
-      },
-      alcoholTest: {
-        value:      alcoholTest?.value      ?? null,
-        testMethod: alcoholTest?.testMethod ?? "not-tested",
-      },
+      heartRate:    { value: heartRate ?? null, status: "normal" },
+      temperature:  { value: temperature ?? null, status: "normal" },
+      bloodOxygen:  { value: bloodOxygen ?? null, status: "normal" },
       drugTest: {
         result:     drugTest?.result     ?? "not-tested",
         substances: drugTest?.substances ?? [],
+        status:     "not-tested",
         testMethod: drugTest?.testMethod ?? "not-tested",
       },
+      overallStatus: "fit",
+      clearedForWork: true,
+      blockReason: null,
+      supervisorNotified: false,
+      supervisorNotifiedAt: null,
+      supervisorName: null,
+      overriddenBy: null,
+      overriddenAt: null,
+      overrideReason: null,
       notes: notes || "",
-    });
+    };
 
-    await reading.save(); // pre-save hook calculates all statuses
+    const blockReasons = [];
+
+    if (reading.heartRate.value !== null) {
+      const hr = reading.heartRate.value;
+      if (hr < 50 || hr > 120)      reading.heartRate.status = "critical";
+      else if (hr < 60 || hr > 100) reading.heartRate.status = "warning";
+      else                           reading.heartRate.status = "normal";
+      if (reading.heartRate.status === "critical")
+        blockReasons.push("Critical heart rate: " + hr + " BPM");
+    }
+
+    if (reading.temperature.value !== null) {
+      const t = reading.temperature.value;
+      if (t > 38.1 || t < 35.5)      reading.temperature.status = "critical";
+      else if (t > 37.2 || t < 36.1) reading.temperature.status = "warning";
+      else                             reading.temperature.status = "normal";
+      if (reading.temperature.status === "critical")
+        blockReasons.push("Critical temperature: " + t + "C");
+    }
+
+    if (reading.bloodOxygen.value !== null) {
+      const s = reading.bloodOxygen.value;
+      if (s < 90)      reading.bloodOxygen.status = "critical";
+      else if (s < 95) reading.bloodOxygen.status = "warning";
+      else             reading.bloodOxygen.status = "normal";
+      if (reading.bloodOxygen.status === "critical")
+        blockReasons.push("Critical SpO2: " + s + "%");
+    }
+
+    if (reading.drugTest.result === "positive") {
+      reading.drugTest.status = "fail";
+      const subs = reading.drugTest.substances.length > 0
+        ? reading.drugTest.substances.join(", ")
+        : "unspecified";
+      blockReasons.push("Positive drug test: " + subs);
+    } else if (reading.drugTest.result === "negative") {
+      reading.drugTest.status = "pass";
+    }
+
+    const vitalStatuses = [
+      reading.heartRate.status,
+      reading.temperature.status,
+      reading.bloodOxygen.status,
+    ];
+
+    const hasCritical     = vitalStatuses.includes("critical");
+    const hasWarning      = vitalStatuses.includes("warning");
+    const drugFail        = reading.drugTest.status === "fail";
+
+    if (hasCritical || drugFail) {
+      reading.overallStatus  = "unfit";
+      reading.clearedForWork = false;
+      reading.blockReason    = blockReasons.join("; ");
+    } else if (hasWarning) {
+      reading.overallStatus  = "caution";
+      reading.clearedForWork = true;
+      reading.blockReason    = null;
+    } else {
+      reading.overallStatus  = "fit";
+      reading.clearedForWork = true;
+      reading.blockReason    = null;
+    }
+
+    const savedReading = await createDoc("vitals", reading);
 
     // ── Auto-create alerts ────────────────────────────────
     const alertsToCreate = [];
@@ -103,30 +171,21 @@ router.post("/", async (req, res) => {
     else if (reading.bloodOxygen.status === "warning")
       addAlert("high",     workerName + " (" + workerId + ") — low SpO2: " + bloodOxygen + "%");
 
-    if (reading.bloodPressure.status === "critical")
-      addAlert("critical", workerName + " (" + workerId + ") — critical BP: " + bloodPressure?.systolic + "/" + bloodPressure?.diastolic + " mmHg");
-    else if (reading.bloodPressure.status === "warning")
-      addAlert("medium",   workerName + " (" + workerId + ") — abnormal BP: " + bloodPressure?.systolic + "/" + bloodPressure?.diastolic + " mmHg");
-
-    if (reading.alcoholTest.status === "fail")
-      addAlert("critical", workerName + " (" + workerId + ") — FAILED alcohol test: BAC " + alcoholTest?.value + " mg/100ml — entry blocked");
-    else if (reading.alcoholTest.status === "warning")
-      addAlert("high",     workerName + " (" + workerId + ") — alcohol test warning: BAC " + alcoholTest?.value + " mg/100ml");
-
     if (reading.drugTest.status === "fail") {
       const subs = reading.drugTest.substances.length > 0 ? reading.drugTest.substances.join(", ") : "unspecified";
       addAlert("critical", workerName + " (" + workerId + ") — FAILED drug test: " + subs + " — entry blocked");
     }
 
-    if (alertsToCreate.length > 0)
-      await Alert.insertMany(alertsToCreate);
+    for (const alert of alertsToCreate) {
+      await createDoc("alerts", alert);
+    }
 
     // ── Supervisor notification record ────────────────────
     let notified = false;
     if ((reading.overallStatus === "unfit" || reading.overallStatus === "caution") && supervisorName) {
-      await VitalReading.findByIdAndUpdate(reading._id, {
-        supervisorNotified:   true,
-        supervisorNotifiedAt: new Date(),
+      await updateDoc("vitals", savedReading.id, {
+        supervisorNotified: true,
+        supervisorNotifiedAt: new Date().toISOString(),
         supervisorName,
       });
       notified = true;
@@ -134,7 +193,7 @@ router.post("/", async (req, res) => {
 
     res.status(201).json({
       success:        true,
-      reading,
+      reading: savedReading,
       alertsCreated:  alertsToCreate.length,
       clearedForWork: reading.clearedForWork,
       overallStatus:  reading.overallStatus,
@@ -152,11 +211,11 @@ router.put("/:id/notify", async (req, res) => {
     const { supervisorName } = req.body;
     if (!supervisorName)
       return res.status(400).json({ error: "supervisorName is required" });
-    const reading = await VitalReading.findByIdAndUpdate(
-      req.params.id,
-      { supervisorNotified: true, supervisorNotifiedAt: new Date(), supervisorName },
-      { new: true }
-    );
+    const reading = await updateDoc("vitals", req.params.id, {
+      supervisorNotified: true,
+      supervisorNotifiedAt: new Date().toISOString(),
+      supervisorName
+    });
     if (!reading) return res.status(404).json({ error: "Reading not found" });
     res.json({ success: true, reading });
   } catch (err) {
@@ -170,26 +229,22 @@ router.put("/:id/override", async (req, res) => {
     const { overriddenBy, overrideReason } = req.body;
     if (!overriddenBy)
       return res.status(400).json({ error: "overriddenBy is required" });
-    const reading = await VitalReading.findByIdAndUpdate(
-      req.params.id,
-      {
-        clearedForWork: true,
-        overallStatus:  "caution",
-        overriddenBy,
-        overriddenAt:   new Date(),
-        overrideReason: overrideReason || "Supervisor override",
-      },
-      { new: true }
-    );
+    const reading = await updateDoc("vitals", req.params.id, {
+      clearedForWork: true,
+      overallStatus: "caution",
+      overriddenBy,
+      overriddenAt: new Date().toISOString(),
+      overrideReason: overrideReason || "Supervisor override",
+    });
     if (!reading) return res.status(404).json({ error: "Reading not found" });
 
     // Log override as alert
-    await Alert.create({
-      type:     "medical",
+    await createDoc("alerts", {
+      type: "medical",
       severity: "high",
-      message:  "Supervisor " + overriddenBy + " overrode UNFIT status for " +
-                reading.workerName + " (" + reading.workerId + ")" +
-                (overrideReason ? ": " + overrideReason : ""),
+      message: "Supervisor " + overriddenBy + " overrode UNFIT status for " +
+               reading.workerName + " (" + reading.workerId + ")" +
+               (overrideReason ? ": " + overrideReason : ""),
     });
 
     res.json({ success: true, reading });
@@ -201,7 +256,7 @@ router.put("/:id/override", async (req, res) => {
 // ── DELETE reading ────────────────────────────────────────
 router.delete("/:id", async (req, res) => {
   try {
-    await VitalReading.findByIdAndDelete(req.params.id);
+    await deleteDoc("vitals", req.params.id);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

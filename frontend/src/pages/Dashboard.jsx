@@ -129,7 +129,7 @@ export default function Dashboard() {
             data.alerts.slice(0, 5).map((a) => {
               const col = { low: "#3b82f6", medium: "#f59e0b", high: "#f97316", critical: "#ef4444" }[a.severity] || "#94a3b8";
               return (
-                <div key={a._id} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 10 }}>
+                <div key={a.id || a._id} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 10 }}>
                   <span style={{ width: 8, height: 8, borderRadius: "50%", background: col, marginTop: 5, flexShrink: 0 }} />
                   <div>
                     <div style={{ color: "#e2e8f0", fontSize: 13 }}>{a.message}</div>

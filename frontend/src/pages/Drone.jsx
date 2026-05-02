@@ -563,9 +563,9 @@ export default function DronePage() {
             <div style={{ color: C.muted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Fleet</div>
             {drones.map(d => (
               <div
-                key={d._id}
+                key={d.id || d._id}
                 onClick={() => { setSelected(d); setMapTiles(d.mapTiles || []); setMapCoverage(d.mapCoverage || 0); setWaypoints(d.waypoints || []); setTelem(d.telemetry || telem); }}
-                style={{ background: selected?._id === d._id ? "#1e3a5f" : C.panel, border: `1px solid ${selected?._id === d._id ? C.blue : C.border}`, borderRadius: 10, padding: "12px 14px", marginBottom: 8, cursor: "pointer", transition: "all 0.15s" }}
+                style={{ background: selected?.id === d.id ? "#1e3a5f" : C.panel, border: `1px solid ${selected?.id === d.id ? C.blue : C.border}`, borderRadius: 10, padding: "12px 14px", marginBottom: 8, cursor: "pointer", transition: "all 0.15s" }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ color: C.text, fontWeight: 600, fontSize: 13 }}>{d.name}</span>
@@ -785,7 +785,7 @@ export default function DronePage() {
                       </div>
                       <Table headers={["Sensor ID", "Type", "Worker", "Status", "Battery", "Location"]}>
                         {sensors.slice(0, 8).map((sensor) => (
-                          <TR key={sensor._id}>
+                          <TR key={sensor.id || sensor._id}>
                             <TD><code style={{ background: "#0f172a", padding: "2px 8px", borderRadius: 4, fontSize: 12 }}>{sensor.sensorId}</code></TD>
                             <TD>
                               <span style={{ display: "flex", alignItems: "center", gap: 6, color: sensor.type === "helmet" ? C.blue : C.purple }}>
@@ -872,7 +872,7 @@ export default function DronePage() {
                       </div>
                       <Table headers={["Name", "Worker ID", "Status", "Location", "Check-in Time", "Sensor"]}>
                         {workers.slice(0, 8).map((worker) => (
-                          <TR key={worker._id}>
+                          <TR key={worker.workerId || worker.id || worker._id}>
                             <TD><span style={{ fontWeight: 600, color: C.text }}>{worker.name}</span></TD>
                             <TD><code style={{ background: "#0f172a", padding: "2px 8px", borderRadius: 4, fontSize: 12 }}>{worker.workerId}</code></TD>
                             <TD><StatusBadge status={worker.status} /></TD>

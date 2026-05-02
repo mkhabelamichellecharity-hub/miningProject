@@ -193,31 +193,35 @@ export function Select({ value, onChange, children }) {
 
 // ── Table ────────────────────────────────────────────────
 export function Table({ headers, children, emptyMsg = "No data found" }) {
+  const hasHeader = Array.isArray(headers) && headers.length > 0;
+
   return (
     <div style={{ overflowX: "auto", borderRadius: 10, border: "1px solid #1e293b" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-        <thead>
-          <tr style={{ background: "#1e293b" }}>
-            {headers.map((h, i) => (
-              <th
-                key={i}
-                style={{
-                  padding: "12px 16px",
-                  textAlign: "left",
-                  color: "#94a3b8",
-                  fontWeight: 600,
-                  fontSize: 12,
-                  textTransform: "uppercase",
-                  letterSpacing: 0.5,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>{children}</tbody>
+        {hasHeader ? (
+          <thead>
+            <tr style={{ background: "#1e293b" }}>
+              {headers.map((h, i) => (
+                <th
+                  key={i}
+                  style={{
+                    padding: "12px 16px",
+                    textAlign: "left",
+                    color: "#94a3b8",
+                    fontWeight: 600,
+                    fontSize: 12,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+        ) : null}
+        {hasHeader ? <tbody>{children}</tbody> : children}
       </table>
       {!children || (Array.isArray(children) && children.length === 0) ? (
         <div style={{ textAlign: "center", padding: 32, color: "#475569" }}>{emptyMsg}</div>

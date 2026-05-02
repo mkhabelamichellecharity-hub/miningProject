@@ -4,6 +4,7 @@ const WorkerSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     workerId: { type: String, required: true, unique: true, trim: true },
+    fingerprint: { type: String, required: true, trim: true }, // Added fingerprint field
     status: {
       type: String,
       enum: ["checked-in", "checked-out"],

@@ -167,7 +167,7 @@ export default function Alerts() {
             const c = SEV_COLORS[a.severity] || SEV_COLORS.low;
             return (
               <div
-                key={a._id}
+                key={a.id || a._id}
                 style={{
                   background: a.resolved ? "#1e293b55" : c.bg,
                   border: `1px solid ${a.resolved ? "#334155" : c.border}`,

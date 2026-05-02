@@ -122,7 +122,7 @@ export default function Tools() {
       {loading ? <Spinner /> : (
         <Table headers={["Name", "Type", "RFID Tag", "Status", "Assigned To", "Last Checked", "Actions"]}>
           {filtered.map((t) => (
-            <TR key={t._id}>
+            <TR key={t.id || t._id}>
               <TD><span style={{ fontWeight: 600, color: "#f1f5f9" }}>{t.name}</span></TD>
               <TD><span style={{ textTransform: "capitalize" }}>{t.type}</span></TD>
               <TD>

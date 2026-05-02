@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "start:backend": "cd backend && npm run dev",
+    "start:frontend": "cd frontend && npm start"
+  },
   "dependencies": {
     "mongodb": "^7.1.1"
   }

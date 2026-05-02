@@ -1,14 +1,21 @@
 const express = require("express");
 const router = express.Router();
-const Lighting = require("../models/Lighting");
+const { getSingleton, createDoc, updateDoc } = require("../firebase");
+
+const lightingCol = "lighting";
+const defaultLighting = {
+  status: "All lights operational",
+  faults: "No faults",
+  activeLights: 42,
+  totalLights: 42,
+};
 
 // GET lighting data
 router.get("/", async (req, res) => {
   try {
-    let light = await Lighting.findOne();
+    let light = await getSingleton(lightingCol);
     if (!light) {
-      light = new Lighting();
-      await light.save();
+      light = await createDoc(lightingCol, defaultLighting);
     }
     res.json(light);
   } catch (err) {
@@ -19,18 +26,19 @@ router.get("/", async (req, res) => {
 // PUT update lighting
 router.put("/", async (req, res) => {
   try {
-    let light = await Lighting.findOne();
-    if (!light) light = new Lighting();
+    let light = await getSingleton(lightingCol);
+    if (!light) light = await createDoc(lightingCol, defaultLighting);
 
     const { status, faults, activeLights, totalLights } = req.body;
-    if (status !== undefined) light.status = status;
-    if (faults !== undefined) light.faults = faults;
-    if (activeLights !== undefined) light.activeLights = activeLights;
-    if (totalLights !== undefined) light.totalLights = totalLights;
-    light.updatedAt = new Date();
+    const updates = {};
+    if (status !== undefined) updates.status = status;
+    if (faults !== undefined) updates.faults = faults;
+    if (activeLights !== undefined) updates.activeLights = activeLights;
+    if (totalLights !== undefined) updates.totalLights = totalLights;
+    updates.updatedAt = new Date();
 
-    await light.save();
-    res.json(light);
+    const updated = await updateDoc(lightingCol, light.id, updates);
+    res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

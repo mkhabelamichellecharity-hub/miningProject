@@ -23,18 +23,8 @@ const VitalReadingSchema = new mongoose.Schema(
       value:  { type: Number, default: null },
       status: { type: String, enum: ["normal", "warning", "critical"], default: "normal" },
     },
-    bloodPressure: {
-      systolic:  { type: Number, default: null },
-      diastolic: { type: Number, default: null },
-      status:    { type: String, enum: ["normal", "warning", "critical"], default: "normal" },
-    },
 
     // ── Substance screening ──────────────────────────────
-    alcoholTest: {
-      value:      { type: Number, default: null },
-      status:     { type: String, enum: ["pass", "warning", "fail", "not-tested"], default: "not-tested" },
-      testMethod: { type: String, enum: ["breathalyser", "blood", "not-tested"], default: "not-tested" },
-    },
     drugTest: {
       result:     { type: String, enum: ["negative", "positive", "not-tested"], default: "not-tested" },
       substances: { type: [String], default: [] },
@@ -93,31 +83,6 @@ VitalReadingSchema.pre("save", function (next) {
       blockReasons.push("Critical SpO2: " + s + "%");
   }
 
-  if (this.bloodPressure.systolic !== null && this.bloodPressure.diastolic !== null) {
-    const sys = this.bloodPressure.systolic;
-    const dia = this.bloodPressure.diastolic;
-    if (sys > 180 || sys < 80 || dia > 120 || dia < 50)
-      this.bloodPressure.status = "critical";
-    else if (sys > 130 || sys < 90 || dia > 90 || dia < 60)
-      this.bloodPressure.status = "warning";
-    else
-      this.bloodPressure.status = "normal";
-    if (this.bloodPressure.status === "critical")
-      blockReasons.push("Critical BP: " + sys + "/" + dia + " mmHg");
-  }
-
-  if (this.alcoholTest.value !== null) {
-    const bac = this.alcoholTest.value;
-    if (bac > 0.04) {
-      this.alcoholTest.status = "fail";
-      blockReasons.push("Alcohol over limit: " + bac + " mg/100ml");
-    } else if (bac > 0.02) {
-      this.alcoholTest.status = "warning";
-    } else {
-      this.alcoholTest.status = "pass";
-    }
-  }
-
   if (this.drugTest.result === "positive") {
     this.drugTest.status = "fail";
     const subs = this.drugTest.substances.length > 0
@@ -132,20 +97,17 @@ VitalReadingSchema.pre("save", function (next) {
     this.heartRate.status,
     this.temperature.status,
     this.bloodOxygen.status,
-    this.bloodPressure.status,
   ];
 
   const hasCritical     = vitalStatuses.includes("critical");
   const hasWarning      = vitalStatuses.includes("warning");
-  const alcoholFail     = this.alcoholTest.status === "fail";
-  const alcoholWarning  = this.alcoholTest.status === "warning";
   const drugFail        = this.drugTest.status === "fail";
 
-  if (hasCritical || alcoholFail || drugFail) {
+  if (hasCritical || drugFail) {
     this.overallStatus  = "unfit";
     this.clearedForWork = false;
     this.blockReason    = blockReasons.join("; ");
-  } else if (hasWarning || alcoholWarning) {
+  } else if (hasWarning) {
     this.overallStatus  = "caution";
     this.clearedForWork = true;
     this.blockReason    = null;

@@ -1,11 +1,23 @@
 const express = require("express");
 const router = express.Router();
-const Worker = require("../models/Worker");
+const {
+  getAll,
+  getDoc,
+  queryOne,
+  createDoc,
+  updateDoc,
+  deleteDoc,
+} = require("../firebase");
+
+const workersCol = "workers";
 
 // GET all workers
 router.get("/", async (req, res) => {
   try {
-    const workers = await Worker.find().sort({ createdAt: -1 });
+    const workers = await getAll(workersCol, {
+      orderBy: "createdAt",
+      direction: "desc",
+    });
     res.json(workers);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -15,7 +27,7 @@ router.get("/", async (req, res) => {
 // GET single worker
 router.get("/:id", async (req, res) => {
   try {
-    const worker = await Worker.findById(req.params.id);
+    const worker = await getDoc(workersCol, req.params.id);
     if (!worker) return res.status(404).json({ error: "Worker not found" });
     res.json(worker);
   } catch (err) {
@@ -23,23 +35,28 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// POST check-in (creates worker if new, checks in if existing)
+// POST check-in (requires card and fingerprint)
 router.post("/checkin", async (req, res) => {
   try {
-    const { name, workerId, location } = req.body;
-    if (!name || !workerId)
-      return res.status(400).json({ error: "name and workerId are required" });
+    const { workerId, fingerprint, location } = req.body;
+    if (!workerId || !fingerprint)
+      return res.status(400).json({ error: "workerId and fingerprint are required" });
 
-    let worker = await Worker.findOne({ workerId });
-    if (!worker) {
-      worker = new Worker({ name, workerId, location: location || "Surface" });
+    const worker = await queryOne(workersCol, "workerId", "==", workerId);
+    if (!worker) return res.status(404).json({ error: "Worker not found" });
+
+    if (worker.fingerprint !== fingerprint) {
+      return res.status(401).json({ error: "Fingerprint mismatch" });
     }
-    worker.status = "checked-in";
-    worker.checkInTime = new Date();
-    worker.checkOutTime = null;
-    if (location) worker.location = location;
-    await worker.save();
-    res.json({ success: true, worker });
+
+    const updatedWorker = await updateDoc(workersCol, worker.id, {
+      status: "checked-in",
+      checkInTime: new Date(),
+      checkOutTime: null,
+      location: location || worker.location || "Surface",
+    });
+
+    res.json({ success: true, worker: updatedWorker });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -51,13 +68,15 @@ router.post("/checkout", async (req, res) => {
     const { workerId } = req.body;
     if (!workerId) return res.status(400).json({ error: "workerId is required" });
 
-    const worker = await Worker.findOne({ workerId });
+    const worker = await queryOne(workersCol, "workerId", "==", workerId);
     if (!worker) return res.status(404).json({ error: "Worker not found" });
 
-    worker.status = "checked-out";
-    worker.checkOutTime = new Date();
-    await worker.save();
-    res.json({ success: true, worker });
+    const updatedWorker = await updateDoc(workersCol, worker.id, {
+      status: "checked-out",
+      checkOutTime: new Date(),
+    });
+
+    res.json({ success: true, worker: updatedWorker });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -66,11 +85,10 @@ router.post("/checkout", async (req, res) => {
 // PUT update worker
 router.put("/:id", async (req, res) => {
   try {
-    const worker = await Worker.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
-    if (!worker) return res.status(404).json({ error: "Worker not found" });
+    const existing = await getDoc(workersCol, req.params.id);
+    if (!existing) return res.status(404).json({ error: "Worker not found" });
+
+    const worker = await updateDoc(workersCol, req.params.id, req.body);
     res.json(worker);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -80,8 +98,10 @@ router.put("/:id", async (req, res) => {
 // DELETE worker
 router.delete("/:id", async (req, res) => {
   try {
-    const worker = await Worker.findByIdAndDelete(req.params.id);
-    if (!worker) return res.status(404).json({ error: "Worker not found" });
+    const existing = await getDoc(workersCol, req.params.id);
+    if (!existing) return res.status(404).json({ error: "Worker not found" });
+
+    await deleteDoc(workersCol, req.params.id);
     res.json({ success: true, message: "Worker deleted" });
   } catch (err) {
     res.status(500).json({ error: err.message });

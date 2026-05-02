@@ -135,7 +135,7 @@ export default function Sensors() {
                 const helmetSensor = sensors.find(s => s.workerName === worker.name && s.type === "helmet");
                 const beltSensor = sensors.find(s => s.workerName === worker.name && s.type === "belt");
                 return (
-                  <TR key={worker._id}>
+                  <TR key={worker.workerId || worker.id || worker._id}>
                     <TD><span style={{ fontWeight: 600, color: "#f1f5f9" }}>{worker.name}</span></TD>
                     <TD><code style={{ background: "#0f172a", padding: "2px 8px", borderRadius: 4, fontSize: 12 }}>{worker.workerId}</code></TD>
                     <TD>
@@ -250,7 +250,7 @@ export default function Sensors() {
       ) : (
         <Table headers={["Sensor ID", "Type", "Worker", "Status", "Location", "Battery", "Last Signal", "Actions"]}>
           {filtered.map((sensor) => (
-            <TR key={sensor._id}>
+            <TR key={sensor.id || sensor._id}>
               <TD>
                 <code style={{ background: "#0f172a", padding: "2px 8px", borderRadius: 4, fontSize: 12 }}>
                   {sensor.sensorId}

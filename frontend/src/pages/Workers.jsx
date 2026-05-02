@@ -11,7 +11,7 @@ export default function Workers() {
   const [workers, setWorkers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({ name: "", workerId: "", location: "Surface" });
+  const [form, setForm] = useState({ workerId: "", fingerprint: "", location: "Surface" });
   const [search, setSearch] = useState("");
   const { show, ToastEl } = useToast();
 
@@ -29,15 +29,15 @@ export default function Workers() {
   useEffect(() => { load(); }, [load]);
 
   const handleCheckIn = async () => {
-    if (!form.name.trim() || !form.workerId.trim()) {
-      show("Name and Worker ID are required", "error");
+    if (!form.workerId.trim() || !form.fingerprint.trim()) {
+      show("Card ID and Fingerprint are required", "error");
       return;
     }
     setSubmitting(true);
     try {
       await checkInWorker(form);
-      show(`${form.name} checked in successfully`, "success");
-      setForm({ name: "", workerId: "", location: "Surface" });
+      show(`Worker checked in successfully`, "success");
+      setForm({ workerId: "", fingerprint: "", location: "Surface" });
       load();
     } catch (err) {
       show("Check-in failed: " + err.message, "error");
@@ -126,18 +126,18 @@ export default function Workers() {
           Check In Worker
         </h3>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 160 }}>
-            <Input
-              placeholder="Full Name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
-          </div>
           <div style={{ flex: 1, minWidth: 140 }}>
             <Input
-              placeholder="Worker ID (e.g. W001)"
+              placeholder="Card ID (e.g. W001)"
               value={form.workerId}
               onChange={(e) => setForm({ ...form, workerId: e.target.value })}
+            />
+          </div>
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <Input
+              placeholder="Fingerprint Hash"
+              value={form.fingerprint}
+              onChange={(e) => setForm({ ...form, fingerprint: e.target.value })}
             />
           </div>
           <div style={{ flex: 1, minWidth: 140 }}>
@@ -166,7 +166,7 @@ export default function Workers() {
       ) : (
         <Table headers={["Name", "Worker ID", "Status", "Location", "Check-In Time", "Actions"]}>
           {filtered.map((w) => (
-            <TR key={w._id}>
+            <TR key={w.workerId || w.id || w._id}>
               <TD><span style={{ fontWeight: 600, color: "#f1f5f9" }}>{w.name}</span></TD>
               <TD><code style={{ background: "#0f172a", padding: "2px 8px", borderRadius: 4, fontSize: 12 }}>{w.workerId}</code></TD>
               <TD><StatusBadge status={w.status} /></TD>

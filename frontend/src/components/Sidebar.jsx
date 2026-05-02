@@ -4,7 +4,11 @@ import { NavLink } from "react-router-dom";
 const navItems = [
   { to: "/", label: "Dashboard", icon: "📊" },
   { to: "/workers", label: "Workers", icon: "👷" },
+  { to: "/integratedtracking", label: "Tracking (Helmet+Belt)", icon: "🔗" },
   { to: "/vitals", label: "Vitals Monitor", icon: "🫀" },
+  { to: "/alcohol", label: "Alcohol Testing", icon: "🍺" },
+  { to: "/bloodflow", label: "Blood Flow", icon: "💉" },
+  { to: "/drugtests", label: "Drug Testing", icon: "💊" },
   { to: "/sensors", label: "Sensors", icon: "📡" },
   { to: "/tools", label: "Tools", icon: "🔧" },
   { to: "/alerts", label: "Alerts", icon: "🚨" },
@@ -13,6 +17,7 @@ const navItems = [
   { to: "/geotechnical", label: "Geotechnical", icon: "🪨" },
   { to: "/lighting", label: "Lighting", icon: "💡" },
   { to: "/drone", label: "Drone Control", icon: "🚁" },
+  { to: "/visioncamera", label: "Vision Cameras", icon: "📹" },
 ];
 
 export default function Sidebar() {
